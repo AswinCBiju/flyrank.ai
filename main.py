@@ -1,3 +1,4 @@
+from starlette.responses import JSONResponse
 from fastapi import HTTPException
 from fastapi import FastAPI
 
@@ -42,3 +43,19 @@ async def taskById(task_id: int):
         status_code=404,
         detail={"error": f"Task {task_id} not found"}
     )
+
+
+@app.post("/tasks", status_code=201)
+async def taskPost(title: str):
+    if not title or len(title) == 0:
+        raise HTTPException(
+            status_code=404,
+            detail={"Bad request" : "Title must not be empty"}
+        )
+    new_task = {
+        "id" : tasks[-1]["id"] + 1 if tasks else 1,
+        "title" : title,
+        "done" : False
+    }
+    tasks.append(new_task)
+    return tasks
