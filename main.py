@@ -1,3 +1,5 @@
+from fastapi import status
+from typing import Optional
 from starlette.responses import JSONResponse
 from fastapi import HTTPException
 from fastapi import FastAPI
@@ -59,3 +61,35 @@ async def taskPost(title: str):
     }
     tasks.append(new_task)
     return tasks
+
+
+@app.put("/tasks/{task_id}")
+async def updateTask(task_id: int, title: Optional[str] = None, done: Optional[bool] = None):
+    for task in tasks:
+        if task["id"] == task_id:
+            if title is not None:
+                if len(title) == 0:
+                    raise HTTPException(
+                        status_code = 400,
+                        detail = {"Bad request": "Title must not be empty"}
+                    )
+                task["title"] = title
+            if done is not None:
+                task["done"] = done
+            return task
+    raise HTTPException(status_code=404, detail={"error": f"Task {task_id} not found"})
+
+
+@app.delete("/tasks/{task_id}")
+async def deleteTask(task_id: int):
+    for task in tasks:
+        if task["id"] == task_id:
+            tasks.remove(task)
+            return JSONResponse(
+                status_code = 204,
+                content = {}
+            )
+    raise HTTPException(
+        status_code = 404,
+        detail = {"Bad request": f"Task {task_id} not found"}
+    )
