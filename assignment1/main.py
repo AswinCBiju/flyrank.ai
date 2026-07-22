@@ -3,26 +3,29 @@ from typing import Optional
 from starlette.responses import JSONResponse
 from fastapi import HTTPException
 from fastapi import FastAPI
+import sqlite3
 
 app = FastAPI()
 
-tasks = [
-    {
-        "id": 1,
-        "title": "task1",
-        "done": False
-    },
-    {
-        "id": 2,
-        "title": "task2",
-        "done": False
-    },
-    {
-        "id": 3,
-        "title": "task3",
-        "done": False
-    }
-]
+conn = sqlite3.connect("tasks.db")
+cursor = conn.cursor()
+
+cursor.execute("select * from tasks")
+rows =  cursor.fetchall()
+if not rows:
+    cursor.executemany(
+        "INSERT INTO tasks (id, title, done) VALUES (?, ?, ?)",
+        [
+            (1, "Learn FastAPI", 0),
+            (2, "Build CRUD API", 0),
+            (3, "Push project to GitHub", 1),
+        ]
+    )
+    conn.commit()
+
+
+
+
 
 @app.get("/")
 def root():
@@ -34,62 +37,81 @@ def health():
 
 @app.get("/tasks")
 async def get_tasks():
-    return tasks
+    cursor.execute("SELECT * FROM tasks")
+    rows = cursor.fetchall()
+
+    return [
+        {"id": row[0], "title": row[1], "done": bool(row[2])}
+        for row in rows
+    ]
 
 @app.get("/tasks/{task_id}")
 async def taskById(task_id: int):
-    for i in range(len(tasks)):
-        if tasks[i]["id"] == task_id:
-            return tasks[i]
-    raise HTTPException(
-        status_code=404,
-        detail={"error": f"Task {task_id} not found"}
+    cursor.execute(
+        "SELECT * FROM tasks WHERE id = ?",
+        (task_id,)
     )
+
+    row = cursor.fetchone()
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": f"Task {task_id} not found"}
+        )
+
+    return {
+        "id": row[0],
+        "title": row[1],
+        "done": bool(row[2])
+    }
 
 
 @app.post("/tasks", status_code=201)
 async def taskPost(title: str):
-    if not title or len(title) == 0:
-        raise HTTPException(
-            status_code=404,
-            detail={"Bad request" : "Title must not be empty"}
-        )
-    new_task = {
-        "id" : tasks[-1]["id"] + 1 if tasks else 1,
+    cursor.execute("SELECT MAX(id) FROM tasks")
+    max_id = cursor.fetchone()[0]
+    new_id = 1 if max_id is None else max_id + 1
+
+    cursor.execute(
+        "INSERT INTO tasks (id, title, done) VALUES (?, ?, ?)",
+        (new_id, title, 0)
+    )
+    conn.commit()
+
+    return {
+        "id" : new_id,
         "title" : title,
         "done" : False
     }
-    tasks.append(new_task)
-    return tasks
-
 
 @app.put("/tasks/{task_id}")
 async def updateTask(task_id: int, title: Optional[str] = None, done: Optional[bool] = None):
-    for task in tasks:
-        if task["id"] == task_id:
-            if title is not None:
-                if len(title) == 0:
-                    raise HTTPException(
-                        status_code = 400,
-                        detail = {"Bad request": "Title must not be empty"}
-                    )
-                task["title"] = title
-            if done is not None:
-                task["done"] = done
-            return task
-    raise HTTPException(status_code=404, detail={"error": f"Task {task_id} not found"})
+    cursor.execute(
+        "SELECT * FROM tasks WHERE id = ?",
+        (task_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": f"Task {task_id} not found"})
+
+    cursor.execute(
+        "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+        (new_title, new_done, task_id)
+    )
+    conn.commit()
 
 
 @app.delete("/tasks/{task_id}")
 async def deleteTask(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            tasks.remove(task)
-            return JSONResponse(
-                status_code = 204,
-                content = {}
-            )
-    raise HTTPException(
-        status_code = 404,
-        detail = {"Bad request": f"Task {task_id} not found"}
+    cursor.execute(
+        "DELETE FROM tasks WHERE id = ?",
+        (task_id,)
     )
+
+    if cursor.rowcount == 0:
+        raise HTTPException(...)
+
+    conn.commit()
