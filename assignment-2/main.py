@@ -1,28 +1,52 @@
-from fastapi import status
-from typing import Optional
-from starlette.responses import JSONResponse
-from fastapi import HTTPException
-from fastapi import FastAPI
+import os
 import sqlite3
+from typing import Optional
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel, Field
 
-app = FastAPI()
+app = FastAPI(title="Task API with SQLite")
 
-conn = sqlite3.connect("tasks.db")
-cursor = conn.cursor()
+# Ensure database directory exists
+os.makedirs("database", exist_ok=True)
 
-cursor.execute("select * from tasks")
-rows =  cursor.fetchall()
-if not rows:
-    cursor.executemany(
-        "INSERT INTO tasks (id, title, done) VALUES (?, ?, ?)",
-        [
-            (1, "Learn FastAPI", 0),
-            (2, "Build CRUD API", 0),
-            (3, "Push project to GitHub", 1),
-        ]
-    )
+DB_PATH = "database/tasks.db"
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Initialize DB table & seed data on startup
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Create table if missing
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            done BOOLEAN NOT NULL DEFAULT 0
+        )
+    """)
     conn.commit()
 
+    cursor.execute("SELECT COUNT(*) FROM tasks")
+    count = cursor.fetchone()[0]
+    
+    if count == 0:
+        cursor.executemany(
+            "INSERT INTO tasks (id, title, done) VALUES (?, ?, ?)",
+            [
+                (1, "Learn FastAPI", 0),
+                (2, "Build CRUD API", 0),
+                (3, "Push project to GitHub", 1),
+            ]
+        )
+    conn.commit()
+    conn.close()
+
+init_db()
 
 
 
