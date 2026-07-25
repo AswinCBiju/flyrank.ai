@@ -16,28 +16,28 @@ A RESTful Task Management API built with **FastAPI** and **SQLite**. This API pr
 
 ---
 
-## 📁 Project Structure
+## 🛠️ Setup & Installation
 
-```text
-assignment-2/
-│
-├── main.py              # FastAPI application with endpoints & SQLite operations
-├── database/            # SQLite database folder (auto-generated)
-│   └── tasks.db         # SQLite database file
-├── README.md            # Project documentation
-└── docs/                # Screenshots and documentation assets
-    └── db_screenshot.png # Database inspection screenshot
+Follow these exact steps to set up the environment and run the project locally.
+
+### 1. Navigate to the Assignment Directory
+```bash
+cd assignment-2
 ```
 
----
+### 2. Create and Activate Virtual Environment (`venv`)
+```bash
+# Create virtual environment
+python3 -m venv .venv
 
-## 🛠️ Requirements & Installation
+# Activate virtual environment
+source .venv/bin/activate
+```
 
-1. **Python 3.8+**
-2. Install dependencies:
-   ```bash
-   pip install fastapi uvicorn pydantic
-   ```
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
@@ -49,10 +49,26 @@ Start the API server locally using Uvicorn:
 uvicorn main:app --reload
 ```
 
-The server will be running at `http://127.0.0.1:8000`.
+The server will run at: `http://127.0.0.1:8000`
 
-Interactive API documentation (Swagger UI) is available at:
+Interactive Swagger Documentation is available at:
 👉 **`http://127.0.0.1:8000/docs`**
+
+---
+
+## 📁 Project Structure
+
+```text
+assignment-2/
+│
+├── main.py              # FastAPI application with endpoints & SQLite operations
+├── requirements.txt     # Python project dependencies
+├── database/            # SQLite database folder (auto-generated)
+│   └── tasks.db         # SQLite database file
+├── images/              # Screenshot assets
+│   └── db_screenshot.png # Database inspection screenshot
+└── README.md            # Assignment documentation
+```
 
 ---
 
@@ -68,25 +84,10 @@ Interactive API documentation (Swagger UI) is available at:
 | `PUT` | `/tasks/{id}` | Update an existing task's title or status | `200 OK` / `404 Not Found` |
 | `DELETE` | `/tasks/{id}` | Delete a task by ID | `200 OK` / `404 Not Found` |
 
-### Example Request Body (POST /tasks)
-```json
-{
-  "title": "Finish Assignment 2"
-}
-```
-
-### Example Request Body (PUT /tasks/{id})
-```json
-{
-  "title": "Finish Assignment 2",
-  "done": true
-}
-```
-
 ---
 
 ## 📸 Database Verification Screenshot
 
-![Database Screenshot](docs/db_screenshot.png)
+![Database Screenshot](images/db_screenshot.png)
 
-*(Note: Replace `docs/db_screenshot.png` with a screenshot showing your SQLite DB browser / CLI query of the `tasks` table).*
+*(Note: Save your screenshot to `images/db_screenshot.png` showing your SQLite DB browser / CLI query of the `tasks` table).*
