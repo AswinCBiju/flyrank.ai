@@ -6,7 +6,7 @@ This assignment extends the Task API by migrating the persistence layer to a Pos
 
 ---
 
-## 🏗️ Architecture & Stack
+## Architecture & Stack
 
 - **Web Service**: FastAPI running on Python 3.11 (`uvicorn`).
 - **Database**: PostgreSQL 15 (`postgres:15-alpine`).
@@ -16,7 +16,7 @@ This assignment extends the Task API by migrating the persistence layer to a Pos
 
 ---
 
-## 🛠️ Project Structure
+## Project Structure
 
 ```text
 assignment-3/
@@ -48,7 +48,7 @@ DATABASE_URL=postgresql://postgres:postgres@db:5432/taskdb
 
 ---
 
-## 🚀 Running the Stack with Docker Compose
+## Running the Stack with Docker Compose
 
 ### 1. Build and Start Services
 Run the following command to build the web image and start both the database and web containers in detached mode:
@@ -101,10 +101,10 @@ docker compose down -v
 
 ---
 
-## 📌 API Endpoints & Usage
+## API Endpoints & Usage
 
 Once running, access the interactive API documentation at:
-👉 **`http://localhost:8000/docs`** (Swagger UI) or **`http://localhost:8000/redoc`**
+-> **`http://localhost:8000/docs`** (Swagger UI) or **`http://localhost:8000/redoc`**
 
 | Method | Endpoint | Description | Expected Status |
 | :--- | :--- | :--- | :--- |
@@ -118,7 +118,7 @@ Once running, access the interactive API documentation at:
 
 ---
 
-## 🧪 Verification & Inspection
+## Verification & Inspection
 
 ### Access PostgreSQL CLI Inside Container
 You can query the database directly inside the running container:
