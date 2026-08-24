@@ -1,10 +1,39 @@
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Depends, HTTPException, status, Response
 from fastapi.responses import JSONResponse
 from supabase_client import supabase
 from pydantic import BaseModel
 from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+def get_current_user(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "Access Token required"
+            }
+        )
+    token = authorization.split(" ")[1] if len(authorization.split(" ")) > 1 else ""
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "Access Token required"
+            }
+        )
+    
+    try:
+        user_res = supabase.auth.get_user(token)
+        return user_res.user
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "Access token required"
+            }
+        )
 
 class UserAuth(BaseModel):
     email: str
@@ -81,28 +110,21 @@ def login(user: UserAuth):
             }
         )
 
+@router.post("/logout")
+def logout(user= Depends(get_current_user)):
+    try:
+        supabase.auth.sign_out()
+        return Response(status_code=204)
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": str(e)
+            }
+        )
 
 @router.get("/protected/profile")
-def protectedInfo(authorization: Optional[str] = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={
-                "error": "Access Token required"
-            }
-        )
-    token = authorization.split(" ")[1] if len(authorization.split(" ")) > 1 else ""
-
-    if not token:
-        return JSONResponse(
-            status_code=401,
-            content={
-                "error": "Access Token required"
-            }
-        )
-    
-    user = supabase.auth.get_user(token).user
-    
+def protectedInfo(user= Depends(get_current_user)):    
     return JSONResponse(
         status_code=200,
         content={
@@ -111,5 +133,15 @@ def protectedInfo(authorization: Optional[str] = Header(None)):
             "user_metadata": user.user_metadata,
             "email": user.email,
             "id": user.id
+        }
+    )
+
+@router.get("/protected/dashboard")
+def protectedDashboard(user= Depends(get_current_user)):
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": "Welcome to your protected Dashboard!",
+            "userID": user.id
         }
     )
