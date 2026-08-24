@@ -1,31 +1,26 @@
 from fastapi import APIRouter, Header, Depends, HTTPException, status, Response
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase_client import supabase
 from pydantic import BaseModel
 from typing import Optional
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"]) 
 
-def get_current_user(authorization: Optional[str] = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "Access Token required"
-            }
-        )
-    token = authorization.split(" ")[1] if len(authorization.split(" ")) > 1 else ""
+security = HTTPBearer()
 
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "Access Token required"
-            }
-        )
-    
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
     try:
         user_res = supabase.auth.get_user(token)
+        if not user_res.user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "error": "Access token required"
+                }
+            )
         return user_res.user
     except Exception as e:
         raise HTTPException(
@@ -129,7 +124,6 @@ def protectedInfo(user= Depends(get_current_user)):
         status_code=200,
         content={
             "message": "Access granted to protected profile",
-            "token": token,
             "user_metadata": user.user_metadata,
             "email": user.email,
             "id": user.id
