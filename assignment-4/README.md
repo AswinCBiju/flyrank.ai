@@ -1,142 +1,89 @@
-# Assignment 3 - Task API Dockerization with PostgreSQL
+# Assignment 4 - Task API Authentication & Authorization with Supabase
 
-A fully containerized RESTful Task Management application built with **FastAPI** and **PostgreSQL**, orchestrated using **Docker** and **Docker Compose**.
-
-This assignment extends the Task API by migrating the persistence layer to a PostgreSQL database container with volume persistence and automated database initialization.
+A RESTful API built with **FastAPI**, **PostgreSQL**, and **Supabase Authentication**. This project implements user registration, authentication, token-based session management, and reusable middleware route guards.
 
 ---
 
-## 🏗️ Architecture & Stack
+## Running the Service Locally
 
-- **Web Service**: FastAPI running on Python 3.11 (`uvicorn`).
-- **Database**: PostgreSQL 15 (`postgres:15-alpine`).
-- **Orchestration**: Docker Compose with healthcheck dependency mapping.
-- **Persistence**: Named Docker volume (`pgdata`) ensuring data survives container lifecycle restarts.
-- **Auto-Initialization**: Database schema and seed data mounted via `init.sql` into `/docker-entrypoint-initdb.d/`.
+### 1. Start the Database Container
+Ensure your PostgreSQL container is running:
+
+```bash
+docker start task_postgres
+```
+
+### 2. Run the FastAPI Server
+Activate your virtual environment and start the development server:
+
+```bash
+source .venv/bin/activate
+uvicorn main:app --reload
+```
+
+- Local Server: **`http://127.0.0.1:8000`**  
+- Interactive API Docs: **`http://127.0.0.1:8000/docs`**
 
 ---
 
-## 🛠️ Project Structure
+## Authentication & Middleware Guard
 
-```text
-assignment-3/
-│
-├── .env                  # Active environment configuration (git ignored)
-├── .env.example          # Template environment variable configurations
-├── Dockerfile            # Container build specification for FastAPI app
-├── docker-compose.yml    # Multi-container service specification (web + db)
-├── init.sql              # Database table creation and initial seed data
-├── main.py               # FastAPI application endpoints & logic
-├── requirements.txt      # Python dependencies (FastAPI, uvicorn, psycopg2-binary, etc.)
-└── README.md             # Project documentation
-```
+### 🛡️ Reusable Middleware Guard 🛡️ (`get_current_user`)
+Implemented in `auth/auth.py` using FastAPI's `HTTPBearer` dependency injection:
+
+- **Token Extraction**: Automatically extracts the `Bearer <token>` string from the `Authorization` request header.
+- **Verification**: Verifies the JWT token with Supabase (`supabase.auth.get_user(token)`).
+- **Security Enforcement**: Missing, invalid, or expired tokens immediately return a `401 Unauthorized` response (`{"detail": {"error": "Access Token required"}}`).
+- **Route Protection**: Adding `user = Depends(get_current_user)` to any endpoint automatically secures it and injects the authenticated `user` object.
 
 ---
 
-## ⚙️ Environment Variables Configuration
+## API Endpoints
 
-Create a `.env` file in the root directory (or copy from `.env.example`):
-
-```env
-DB_HOST=db
-DB_PORT=5432
-DB_NAME=taskdb
-DB_USER=postgres
-DB_PASSWORD=postgres
-DATABASE_URL=postgresql://postgres:postgres@db:5432/taskdb
-```
-
----
-
-## 🚀 Running the Stack with Docker Compose
-
-### 1. Build and Start Services
-Run the following command to build the web image and start both the database and web containers in detached mode:
-
-```bash
-docker compose up --build -d
-```
-
-*(If using older docker-compose syntax, use `docker-compose up --build -d`)*
-
-### 2. View Service Logs
-To monitor container logs:
-
-```bash
-# View all logs
-docker compose logs -f
-
-# View web app logs only
-docker compose logs -f web
-
-# View database logs only
-docker compose logs -f db
-```
-
-### 3. Check Container Status
-Verify that both containers are running and the database is healthy:
-
-```bash
-docker compose ps
-```
-
-### 4. Stop Services
-To stop running containers without losing database data:
-
-```bash
-docker compose stop
-```
-
-To bring down containers and networks:
-
-```bash
-docker compose down
-```
-
-To remove containers and wipe persistent database volumes:
-
-```bash
-docker compose down -v
-```
-
----
-
-## 📌 API Endpoints & Usage
-
-Once running, access the interactive API documentation at:
-👉 **`http://localhost:8000/docs`** (Swagger UI) or **`http://localhost:8000/redoc`**
-
-| Method | Endpoint | Description | Expected Status |
+### Public Routes
+| Method | Endpoint | Description | Status Code |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/` | API Root / Meta Info | `200 OK` |
-| `GET` | `/health` | Health Check Endpoint | `200 OK` |
-| `GET` | `/tasks` | Retrieve all tasks | `200 OK` |
-| `GET` | `/tasks/{id}` | Retrieve a task by ID | `200 OK` / `404 Not Found` |
-| `POST` | `/tasks` | Create a new task | `201 Created` / `400 Bad Request` |
-| `PUT` | `/tasks/{id}` | Update an existing task | `200 OK` / `404 Not Found` |
-| `DELETE` | `/tasks/{id}` | Delete a task by ID | `200 OK` / `404 Not Found` |
+| `GET` | `/` | API Information | `200 OK` |
+| `GET` | `/health` | Server Health Check | `200 OK` |
+| `GET` | `/public/info` | Unprotected Public Info | `200 OK` |
+
+### Auth Routes (`/auth`)
+| Method | Endpoint | Description | Status Code |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/auth/signup` | Register a new user | `201 Created` / `400 Bad Request` |
+| `POST` | `/auth/login` | Log in user & return Access Token | `200 OK` / `401 Unauthorized` |
+| `POST` | `/auth/logout` | Sign out authenticated session | `204 No Content` |
+
+### Protected Routes (Requires `Authorization: Bearer <token>`)
+| Method | Endpoint | Description | Status Code |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/auth/protected/profile` | Returns authenticated user profile | `200 OK` / `401 Unauthorized` |
+| `GET` | `/auth/protected/dashboard` | Returns protected dashboard data | `200 OK` / `401 Unauthorized` |
 
 ---
 
-## 🧪 Verification & Inspection
-
-### Access PostgreSQL CLI Inside Container
-You can query the database directly inside the running container:
+## Testing Checkpoints (`curl`)
 
 ```bash
-docker exec -it task_postgres psql -U postgres -d taskdb
+# 1. Signup
+curl -i -X POST http://127.0.0.1:8000/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com", "password":"password123"}'
+
+# 2. Login
+curl -i -X POST http://127.0.0.1:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com", "password":"password123"}'
+
+# 3. Protected Profile
+curl -i http://127.0.0.1:8000/auth/protected/profile \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+# 4. Protected Dashboard
+curl -i http://127.0.0.1:8000/auth/protected/dashboard \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+# 5. Logout
+curl -i -X POST http://127.0.0.1:8000/auth/logout \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
 ```
-
-Sample SQL queries inside `psql`:
-
-```sql
-\dt                  -- List tables
-SELECT * FROM tasks; -- Query stored tasks
-\q                   -- Exit psql
-```
-
-### Data Persistence Verification
-1. Start the stack: `docker compose up -d`
-2. Create a task using `POST /tasks` or Swagger UI.
-3. Restart the containers: `docker compose restart`
-4. Fetch tasks (`GET /tasks`) to verify created data persists across restarts.
