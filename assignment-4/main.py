@@ -3,6 +3,7 @@ import sqlite3
 from dotenv import load_dotenv
 from typing import Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from auth.auth import router as auth_router
 from repository import PostgresTaskRepository
 
@@ -64,3 +65,13 @@ async def deleteTask(task_id: int):
         raise HTTPException(status_code=404, detail={"error": f"Task {task_id} not found"})
 
     return {"message": f"Task {task_id} deleted successfully"}
+
+@app.get("/public/info")
+def publicInfo():
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": "Welcome stranger! This info is public."
+        }
+    )
+
