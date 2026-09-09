@@ -14,7 +14,7 @@ sites are touched.
 star rating, description, plus provenance fields (source page and fetch timestamp).
 This is publicly displayed product-catalogue data, not personal or private information.
 
-**robots.txt check:** Requested `https://books.toscrape.com/robots.txt` on [date].
+**robots.txt check:** Requested `https://books.toscrape.com/robots.txt` on 09/09/26.
 Result: "Received a 404 — no robots
 file found. This is not permission by itself, just the absence of a rule."
 
