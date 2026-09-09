@@ -15,9 +15,8 @@ star rating, description, plus provenance fields (source page and fetch timestam
 This is publicly displayed product-catalogue data, not personal or private information.
 
 **robots.txt check:** Requested `https://books.toscrape.com/robots.txt` on [date].
-Result: [either — "Received a 200. Contents: <paste what you got>. Nothing disallows
-/catalogue/ or the book pages I'm targeting." — OR — "Received a 404 — no robots
-file found. This is not permission by itself, just the absence of a rule."]
+Result: "Received a 404 — no robots
+file found. This is not permission by itself, just the absence of a rule."
 
 **Why this is appropriate here:** The target is a sandbox designed for scraping
 practice, my scope is limited to a small, publicly visible slice of it, and I'm
