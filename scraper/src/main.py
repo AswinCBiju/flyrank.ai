@@ -3,6 +3,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from datetime import datetime, timezone
 
 USER_AGENT = "FlyRankInternshipA9/1.0 (+https://github.com/AswinCBiju/flyrank.ai/tree/master/scraper)"
 TIME_OUT = 5
@@ -47,7 +48,50 @@ def discover_all_book_links(max_pages):
         page_num += 1
 
     return all_links
-    
+
+def extract_book_details(html, product_url, source_page):
+    soup = BeautifulSoup(html, "html.parser")
+    product_area = soup.select_one("div.product_main")
+
+    title = product_area.select_one("h1").get_text(strip=True)
+    price_text = product_area.select_one("p.price_color").get_text(strip=True)
+    availability_text = product_area.select_one("p.availability").get_text(strip=True)
+    rating_tag = product_area.select_one("p.star-rating")
+    rating_classes = rating_tag.get("class")
+    rating_text = [c for c in rating_classes if c != "star-rating"][0]
+
+    description_tag = soup.select_one("#product_description")
+    if description_tag != None:
+        description = description_tag.find_next_sibling("p").get_text(strip=True)
+    else:
+        description = None
+
+    return {
+         "title": title,
+        "product_url": product_url,
+        "price_text": price_text,
+        "availability_text": availability_text,
+        "rating_text": rating_text,
+        "description": description,
+        "source_page": source_page,
+        "fetched_at": datetime.now(timezone.utc).isoformat()
+    }
+
+def extract_all_book_details(book_urls):
+    all_records = []
+
+    for i, url in enumerate(book_urls, start=1):
+        cache_filename = f"book-{i}.html"
+        html = fetch_page(url, cache_filename)
+
+        if html == None:
+            print(f"Could not fetch {url}, skipping")
+            continue
+
+        record = extract_book_details(html, product_url=url, source_page=url)
+        all_records.append(record)
+    return all_records
+     
 def fetch_page(url, cache_filename, delay=0.5):
     os.makedirs(CACHE_DIR, exist_ok = True)
     cache_path = os.path.join(CACHE_DIR, cache_filename)
@@ -62,10 +106,11 @@ def fetch_page(url, cache_filename, delay=0.5):
     headers = {"user-agent": USER_AGENT}
     try:
         response = requests.get(url, headers=headers, timeout=TIME_OUT)
+        response.encoding = response.apparent_encoding
     except requests.exceptions.RequestException as e:
         print(f"FETCH_FAILED {url} ({e})")
         return None
-
+    
     status = response.status_code
     if status != 200:
         print(f"FETCH_FAILED {url} (status {status})")
@@ -98,3 +143,8 @@ if __name__ == "__main__":
     print(f"discovered={len(all_links)}")
     print(f"unique_urls={len(unique_links)}")
 
+    print(f"About to fetch {len(unique_links)} book pages")
+    records = extract_all_book_details(unique_links)
+
+    print(f"detail_pages={len(records)}")
+    print(records[0])
