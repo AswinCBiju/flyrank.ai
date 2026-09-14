@@ -4,10 +4,32 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from datetime import datetime, timezone
+from pydantic import BaseModel, ValidationError, HttpUrl
+from typing import Optional
+import json
 
 USER_AGENT = "FlyRankInternshipA9/1.0 (+https://github.com/AswinCBiju/flyrank.ai/tree/master/scraper)"
 TIME_OUT = 5
 CACHE_DIR = "cache"
+
+class Book(BaseModel):
+    title: str
+    product_url: HttpUrl
+    price_text: str
+    price_gbp: float
+    availability_text: str
+    rating_text: str
+    description: Optional[str] = None
+    source_page: str
+    fetched_at: str
+
+def parse_price(price_text):
+    cleaned_price = price_text.replace("£","").strip()
+    try:
+        return float(cleaned_price)
+    except ValueError as e:
+        print(f"FAILED TO PARSE PRICE: {repr(price_text)} -> cleaned: {repr(cleaned_price)}")
+        raise
 def find_next_page(html, page_url):
     soup = BeautifulSoup(html, "html.parser")
     next_link = soup.select_one("li.next a")
@@ -91,7 +113,59 @@ def extract_all_book_details(book_urls):
         record = extract_book_details(html, product_url=url, source_page=url)
         all_records.append(record)
     return all_records
-     
+
+def validate_record(raw_record):
+    try:
+        price_gbp = parse_price(raw_record["price_text"])
+    except (ValueError,KeyError) as e:
+        return None, f"could not parse price: {e}"
+
+    try:
+        book = Book(
+            title=raw_record["title"],
+            product_url=raw_record["product_url"],
+            price_text=raw_record["price_text"],
+            price_gbp=price_gbp,
+            availability_text=raw_record["availability_text"],
+            rating_text=raw_record["rating_text"],
+            description=raw_record["description"],
+            source_page=raw_record["source_page"],
+            fetched_at=raw_record["fetched_at"]
+        )
+    except ValidationError as e:
+        return None, str(e)
+
+    return book, None
+
+def validate_and_store(raw_records):
+    seen = set()
+    valid_books = []
+    errors = []
+
+    for raw in raw_records:
+        book, error = validate_record(raw)
+
+        if error:
+            errors.append({"record": raw, "reason": error})
+            continue
+
+        url = str(book.product_url)
+        if url in seen:
+            continue
+        seen.add(url)
+
+        valid_books.append(book.model_dump(mode="json"))
+
+    os.makedirs("output", exist_ok=True)
+
+    with open("output/books.json", "w", encoding="utf-8") as f:
+        json.dump(valid_books, f, indent=2)
+
+    with open("output/errors.json", "w", encoding="utf-8") as f:
+        json.dump(errors, f, indent=2)
+
+    return valid_books, errors
+            
 def fetch_page(url, cache_filename, delay=0.5):
     os.makedirs(CACHE_DIR, exist_ok = True)
     cache_path = os.path.join(CACHE_DIR, cache_filename)
@@ -143,8 +217,9 @@ if __name__ == "__main__":
     print(f"discovered={len(all_links)}")
     print(f"unique_urls={len(unique_links)}")
 
-    print(f"About to fetch {len(unique_links)} book pages")
-    records = extract_all_book_details(unique_links)
+    raw_records = extract_all_book_details(unique_links)
+    print(f"detail_pages={len(raw_records)}")
 
-    print(f"detail_pages={len(records)}")
-    print(records[0])
+    valid_books, errors = validate_and_store(raw_records)
+    print(f"valid_records={len(valid_books)}")
+    print(f"invalid_records={len(errors)}")
