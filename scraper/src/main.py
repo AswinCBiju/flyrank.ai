@@ -11,6 +11,7 @@ import json
 USER_AGENT = "FlyRankInternshipA9/1.0 (+https://github.com/AswinCBiju/flyrank.ai/tree/master/scraper)"
 TIME_OUT = 5
 CACHE_DIR = "cache"
+stats = {"fetched": 0, "cache_hits": 0}
 
 class Book(BaseModel):
     title: str
@@ -101,6 +102,7 @@ def extract_book_details(html, product_url, source_page):
 
 def extract_all_book_details(book_urls):
     all_records = []
+    failed_pages = []
 
     for i, url in enumerate(book_urls, start=1):
         cache_filename = f"book-{i}.html"
@@ -108,11 +110,12 @@ def extract_all_book_details(book_urls):
 
         if html == None:
             print(f"Could not fetch {url}, skipping")
+            failed_pages.append(url)
             continue
 
         record = extract_book_details(html, product_url=url, source_page=url)
         all_records.append(record)
-    return all_records
+    return all_records, failed_pages
 
 def validate_record(raw_record):
     try:
@@ -166,7 +169,7 @@ def validate_and_store(raw_records):
 
     return valid_books, errors
             
-def fetch_page(url, cache_filename, delay=0.5):
+def fetch_page(url, cache_filename, delay=0.5, max_retries=1):
     os.makedirs(CACHE_DIR, exist_ok = True)
     cache_path = os.path.join(CACHE_DIR, cache_filename)
 
@@ -175,35 +178,76 @@ def fetch_page(url, cache_filename, delay=0.5):
         with open(cache_path, "r", encoding="utf-8") as f:
             html = f.read()
         print(f"CACHE HIT  {cache_filename}  ({len(html)} bytes)")
+        stats["cache_hits"] += 1
         return html
 
     headers = {"user-agent": USER_AGENT}
-    try:
-        response = requests.get(url, headers=headers, timeout=TIME_OUT)
-        response.encoding = response.apparent_encoding
-    except requests.exceptions.RequestException as e:
-        print(f"FETCH_FAILED {url} ({e})")
-        return None
-    
-    status = response.status_code
-    if status != 200:
+    attempt = 0
+
+    while attempt <= max_retries:
+        attempt += 1
+        try:
+            response = requests.get(url, headers=headers, timeout=TIME_OUT)
+        except requests.exceptions.Timeout:
+            print(f"FETCH_FAILED {url} (timeout, attempt {attempt})")
+            if attempt <= max_retries:
+                time.sleep(1)
+                continue
+            return None
+        except requests.exceptions.RequestException as e:
+            print(f"FETCH_FAILED {url} ({e})")
+            return None
+
+        status = response.status_code
+
+        if status == 200:
+            response.encoding = "utf-8"
+            html = response.text
+            with open(cache_path, "w", encoding="utf-8") as f:
+                f.write(html)
+            print(f"FETCH      {cache_filename}  ({len(html)} bytes)")
+            stats["fetched"] += 1
+            time.sleep(delay)
+            return html
+
+        if status in (404, 403):
+            print(f"FETCH_FAILED {url} (status {status}, not retrying)")
+            return None
+
+        if status >= 500:
+            print(f"FETCH_FAILED {url} (status {status}, attempt {attempt})")
+            if attempt <= max_retries:
+                time.sleep(1)
+                continue
+            return None
+
         print(f"FETCH_FAILED {url} (status {status})")
         return None
 
-    html = response.text
+    return None
 
+def run_report(start_time, pages_fetched, cache_hits, valid_count, invalid_count, failed_pages):
+    duration = time.time() - start_time
 
-    with open(cache_path, "w", encoding="utf-8") as f:
-        f.write(html)
+    report = {
+        "start_time": datetime.fromtimestamp(start_time, tz=timezone.utc).isoformat(),
+        "duration_seconds": round(duration, 2),
+        "pages_fetched": pages_fetched,
+        "cache_hits": cache_hits,
+        "valid_records": valid_count,
+        "invalid_records": invalid_count,
+        "failed_pages": len(failed_pages),
+        "failed_page_urls": failed_pages,
+    }
 
-    print(f"FETCH      {cache_filename}  ({len(html)} bytes)")
-    time.sleep(delay)
+    os.makedirs("output", exist_ok=True)
+    with open("output/run-report.json", "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
 
-    return html
+    return report
 
 if __name__ == "__main__":
-    url = "https://books.toscrape.com/catalogue/page-1.html"
-    fetch_page(url, "catalogue-page-1.html")
+    start_time = time.time()
 
     all_links = discover_all_book_links(3)
     seen = set()
@@ -217,9 +261,19 @@ if __name__ == "__main__":
     print(f"discovered={len(all_links)}")
     print(f"unique_urls={len(unique_links)}")
 
-    raw_records = extract_all_book_details(unique_links)
+    raw_records, failed_pages = extract_all_book_details(unique_links)
     print(f"detail_pages={len(raw_records)}")
 
     valid_books, errors = validate_and_store(raw_records)
     print(f"valid_records={len(valid_books)}")
     print(f"invalid_records={len(errors)}")
+
+    report = run_report(
+        start_time=start_time,
+        pages_fetched=stats["fetched"],
+        cache_hits=stats["cache_hits"],
+        valid_count=len(valid_books),
+        invalid_count=len(errors),
+        failed_pages=failed_pages,
+    )
+    print("run-report.json written:", report)
