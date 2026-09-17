@@ -3,4 +3,5 @@ venv/
 .venv/
 scraper/cache/
 .env
-
+cache/
+*.pyc
